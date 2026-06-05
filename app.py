@@ -25,7 +25,7 @@ st.markdown("একাধিক সাল, বোর্ড এবং কলে�
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
 except Exception:
-    st.error("⚠️ Streamlit Secrets-এ GEMINI_API_KEY পাওয়া যায়নি।")
+    st.error("⚠️ Streamlit Secrets-এ GEMINI_API_KEY পাওয়া যায়নি।")
     st.stop()
 
 # ----------------------------
@@ -132,7 +132,7 @@ def extract_mcq_with_gemini(raw_text):
 
 যদি কোনো তথ্য না পাও তাহলে খালি list বা খালি string ব্যবহার করবে।
 
-JSON ছাড়া অন্য কিছু লিখবে না।
+JSON ছাড়া অন্য কিছু লিখবে না।
 
 RAW TEXT:
 {raw_text}
@@ -142,12 +142,16 @@ RAW TEXT:
 
     text = response.text.strip()
 
+    # Remove markdown code blocks (```json``` or ```)
     text = re.sub(
         r"```(?:json)?\s*(.*?)\s*```",
         r"\1",
         text,
         flags=re.DOTALL
     ).strip()
+
+    # Remove any leading/trailing whitespace and newlines
+    text = text.strip()
 
     return text
 
@@ -178,102 +182,113 @@ if st.button("✨ ম্যাজিক শুরু করুন"):
 
             results = []
 
-option_labels = ["ক", "খ", "গ", "ঘ", "ঙ", "চ"]
+            option_labels = ["ক", "খ", "গ", "ঘ", "ঙ", "চ"]
 
-for q_no, item in enumerate(structured_data, start=1):
+            for q_no, item in enumerate(structured_data, start=1):
 
-    question = item.get("question", "").strip()
+                question = item.get("question", "").strip()
 
-    options = item.get("options", [])
-    answer = item.get("answer", "").strip()
+                options = item.get("options", [])
+                answer = item.get("answer", "").strip()
 
-    years = item.get("years", [])
-    institutions = item.get("institutions", [])
+                years = item.get("years", [])
+                institutions = item.get("institutions", [])
 
-    # ----------------------------
-    # Format Options
-    # ----------------------------
-    formatted_options = []
+                # ----------------------------
+                # Format Options
+                # ----------------------------
+                formatted_options = []
 
-    for i, option in enumerate(options):
-        if i < len(option_labels):
-            formatted_options.append(
-                f"{option_labels[i]}. {option}"
-            )
-        else:
-            formatted_options.append(option)
+                for i, option in enumerate(options):
+                    option_text = str(option).strip()
+                    if i < len(option_labels):
+                        formatted_options.append(
+                            f"{option_labels[i]}. {option_text}"
+                        )
+                    else:
+                        formatted_options.append(option_text)
 
-    options_text = "\n".join(formatted_options)
+                options_text = "\n".join(formatted_options)
 
-    # ----------------------------
-    # Detect Answer Label
-    # ----------------------------
-    answer_text = answer
-    answer_label = ""
+                # ----------------------------
+                # Detect Answer Label
+                # ----------------------------
+                answer_text = answer
+                answer_label = ""
 
-    for i, option in enumerate(options):
-        if answer.strip().lower() == option.strip().lower():
-            if i < len(option_labels):
-                answer_label = option_labels[i]
-            break
+                for i, option in enumerate(options):
+                    if answer.strip().lower() == str(option).strip().lower():
+                        if i < len(option_labels):
+                            answer_label = option_labels[i]
+                        break
 
-    if answer_label:
-        answer_text = f"{answer_label}. {answer}"
+                if answer_label:
+                    # Find the full option text for the answer
+                    answer_index = option_labels.index(answer_label)
+                    if answer_index < len(options):
+                        answer_full = str(options[answer_index]).strip()
+                        answer_text = f"{answer_label}. {answer_full}"
+                else:
+                    # If no match found, just use the answer as is
+                    answer_text = answer
 
-    # ----------------------------
-    # Match Institutions
-    # ----------------------------
-    matched_institutions = []
+                # ----------------------------
+                # Match Institutions
+                # ----------------------------
+                matched_institutions = []
 
-    for inst in institutions:
+                for inst in institutions:
+                    inst = str(inst).strip()
+                    if not inst:
+                        continue
 
-        best_match = process.extractOne(
-            inst,
-            choices,
-            scorer=fuzz.WRatio
-        )
+                    best_match = process.extractOne(
+                        inst,
+                        choices,
+                        scorer=fuzz.WRatio
+                    )
 
-        if best_match:
-            matched_name, score, _ = best_match
+                    if best_match:
+                        matched_name, score, _ = best_match
 
-            if score >= 85:
-                eiin_code = name_to_eiin[matched_name]
-                matched_institutions.append(
-                    f"{inst} [{eiin_code}]"
+                        if score >= 85:
+                            eiin_code = name_to_eiin[matched_name]
+                            matched_institutions.append(
+                                f"{inst} [{eiin_code}]"
+                            )
+                        else:
+                            matched_institutions.append(
+                                f"{inst} [⚠️ কোড পাইনি]"
+                            )
+                    else:
+                        matched_institutions.append(
+                            f"{inst} [⚠️ কোড পাইনি]"
+                        )
+
+                years_text = ", ".join([str(y).strip() for y in years if y])
+
+                institutions_text = (
+                    ", ".join(matched_institutions)
+                    if matched_institutions
+                    else "কোনো বোর্ড/কলেজ নেই"
                 )
-            else:
-                matched_institutions.append(
-                    f"{inst} [⚠️ কোড পাইনি]"
+
+                # ----------------------------
+                # Final Output
+                # ----------------------------
+                output_block = (
+                    f"প্রশ্ন {q_no}:\n\n"
+                    f"{question}\n\n"
+                    f"{options_text}\n\n"
+                    f"উত্তর: {answer_text}\n"
+                    f"বোর্ড ও সাল: {institutions_text} ({years_text})"
                 )
-        else:
-            matched_institutions.append(
-                f"{inst} [⚠️ কোড পাইনি]"
-            )
 
-    years_text = ", ".join(years)
-
-    institutions_text = (
-        ", ".join(matched_institutions)
-        if matched_institutions
-        else "কোনো বোর্ড/কলেজ নেই"
-    )
-
-    # ----------------------------
-    # Final Output
-    # ----------------------------
-    output_block = (
-        f"প্রশ্ন {q_no}:\n"
-        f"{question}\n\n"
-        f"{options_text}\n\n"
-        f"উত্তর: {answer_text}\n"
-        f"বোর্ড ও সাল: {institutions_text} ({years_text})"
-    )
-
-    results.append(output_block)
+                results.append(output_block)
 
             final_output = "\n\n".join(results)
 
-            st.success("✅ সফলভাবে প্রসেস সম্পন্ন হয়েছে!")
+            st.success("✅ সফলভাবে প্রসেস সম্পন্ন হয়েছে!")
 
             st.text_area(
                 "ফলাফল (কপি করার জন্য):",
@@ -289,7 +304,7 @@ for q_no, item in enumerate(structured_data, start=1):
             )
 
         except json.JSONDecodeError:
-            st.error("⚠️ Gemini থেকে বৈধ JSON পাওয়া যায়নি।")
+            st.error("⚠️ Gemini থেকে বৈধ JSON পাওয়া যায়নি।")
 
             with st.expander("Raw Response"):
                 st.code(json_text)
