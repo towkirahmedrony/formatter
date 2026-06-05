@@ -178,62 +178,98 @@ if st.button("✨ ম্যাজিক শুরু করুন"):
 
             results = []
 
-            for item in structured_data:
+option_labels = ["ক", "খ", "গ", "ঘ", "ঙ", "চ"]
 
-                question = item.get("question", "").strip()
+for q_no, item in enumerate(structured_data, start=1):
 
-                options = item.get("options", [])
-                answer = item.get("answer", "").strip()
+    question = item.get("question", "").strip()
 
-                years = item.get("years", [])
-                institutions = item.get("institutions", [])
+    options = item.get("options", [])
+    answer = item.get("answer", "").strip()
 
-                options_text = "\n".join(options)
+    years = item.get("years", [])
+    institutions = item.get("institutions", [])
 
-                matched_institutions = []
+    # ----------------------------
+    # Format Options
+    # ----------------------------
+    formatted_options = []
 
-                for inst in institutions:
+    for i, option in enumerate(options):
+        if i < len(option_labels):
+            formatted_options.append(
+                f"{option_labels[i]}. {option}"
+            )
+        else:
+            formatted_options.append(option)
 
-                    best_match = process.extractOne(
-                        inst,
-                        choices,
-                        scorer=fuzz.WRatio
-                    )
+    options_text = "\n".join(formatted_options)
 
-                    if best_match:
-                        matched_name, score, _ = best_match
+    # ----------------------------
+    # Detect Answer Label
+    # ----------------------------
+    answer_text = answer
+    answer_label = ""
 
-                        if score >= 85:
-                            eiin_code = name_to_eiin[matched_name]
-                            matched_institutions.append(
-                                f"{inst} [{eiin_code}]"
-                            )
-                        else:
-                            matched_institutions.append(
-                                f"{inst} [⚠️ কোড পাইনি]"
-                            )
-                    else:
-                        matched_institutions.append(
-                            f"{inst} [⚠️ কোড পাইনি]"
-                        )
+    for i, option in enumerate(options):
+        if answer.strip().lower() == option.strip().lower():
+            if i < len(option_labels):
+                answer_label = option_labels[i]
+            break
 
-                years_text = ", ".join(years)
+    if answer_label:
+        answer_text = f"{answer_label}. {answer}"
 
-                institutions_text = (
-                    ", ".join(matched_institutions)
-                    if matched_institutions
-                    else "কোনো বোর্ড/কলেজ নেই"
+    # ----------------------------
+    # Match Institutions
+    # ----------------------------
+    matched_institutions = []
+
+    for inst in institutions:
+
+        best_match = process.extractOne(
+            inst,
+            choices,
+            scorer=fuzz.WRatio
+        )
+
+        if best_match:
+            matched_name, score, _ = best_match
+
+            if score >= 85:
+                eiin_code = name_to_eiin[matched_name]
+                matched_institutions.append(
+                    f"{inst} [{eiin_code}]"
                 )
-
-                output_block = (
-                    f"{question}\n"
-                    f"{options_text}\n"
-                    f"{answer}\n"
-                    f"* **বোর্ড ও সাল:** "
-                    f"{institutions_text} ({years_text})"
+            else:
+                matched_institutions.append(
+                    f"{inst} [⚠️ কোড পাইনি]"
                 )
+        else:
+            matched_institutions.append(
+                f"{inst} [⚠️ কোড পাইনি]"
+            )
 
-                results.append(output_block)
+    years_text = ", ".join(years)
+
+    institutions_text = (
+        ", ".join(matched_institutions)
+        if matched_institutions
+        else "কোনো বোর্ড/কলেজ নেই"
+    )
+
+    # ----------------------------
+    # Final Output
+    # ----------------------------
+    output_block = (
+        f"প্রশ্ন {q_no}:\n"
+        f"{question}\n\n"
+        f"{options_text}\n\n"
+        f"উত্তর: {answer_text}\n"
+        f"বোর্ড ও সাল: {institutions_text} ({years_text})"
+    )
+
+    results.append(output_block)
 
             final_output = "\n\n".join(results)
 
