@@ -290,10 +290,9 @@ if st.button("✨ ম্যাজিক শুরু করুন"):
 
             st.success("✅ সফলভাবে প্রসেস সম্পন্ন হয়েছে!")
 
-            st.text_area(
-                "ফলাফল (কপি করার জন্য):",
-                value=final_output,
-                height=450
+            st.code(
+                final_output,
+                language="text"
             )
 
             st.download_button(
