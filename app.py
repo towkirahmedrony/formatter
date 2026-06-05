@@ -20,12 +20,13 @@ st.title("⚡ Pro MCQ & Board/College Code Matcher")
 st.markdown("একাধিক সাল, বোর্ড এবং কলেজের নামসহ MCQ পেস্ট করুন।")
 
 # ----------------------------
-# Sidebar
+# Load Gemini API Key from Secrets
 # ----------------------------
-api_key = st.sidebar.text_input(
-    "আপনার Gemini API Key দিন:",
-    type="password"
-)
+try:
+    api_key = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    st.error("⚠️ Streamlit Secrets-এ GEMINI_API_KEY পাওয়া যায়নি।")
+    st.stop()
 
 # ----------------------------
 # Load Institution Database
@@ -109,15 +110,11 @@ class MCQItem(typing.TypedDict):
 # ----------------------------
 # Gemini Extraction
 # ----------------------------
-def extract_mcq_with_gemini(raw_text, api_key):
+def extract_mcq_with_gemini(raw_text):
     genai.configure(api_key=api_key)
 
     model = genai.GenerativeModel(
-        "gemini-1.5-flash",
-        generation_config={
-            "response_mime_type": "application/json",
-            "response_schema": list[MCQItem]
-        }
+        "gemini-2.5-flash"
     )
 
     prompt = f"""
@@ -135,6 +132,8 @@ def extract_mcq_with_gemini(raw_text, api_key):
 
 যদি কোনো তথ্য না পাও তাহলে খালি list বা খালি string ব্যবহার করবে।
 
+JSON ছাড়া অন্য কিছু লিখবে না।
+
 RAW TEXT:
 {raw_text}
 """
@@ -143,7 +142,6 @@ RAW TEXT:
 
     text = response.text.strip()
 
-    # Remove markdown code blocks if Gemini returns them
     text = re.sub(
         r"```(?:json)?\s*(.*?)\s*```",
         r"\1",
@@ -167,10 +165,6 @@ user_input = st.text_area(
 # ----------------------------
 if st.button("✨ ম্যাজিক শুরু করুন"):
 
-    if not api_key:
-        st.error("⚠️ প্রথমে Gemini API Key দিন!")
-        st.stop()
-
     if not user_input.strip():
         st.warning("⚠️ অনুগ্রহ করে MCQ পেস্ট করুন!")
         st.stop()
@@ -178,10 +172,7 @@ if st.button("✨ ম্যাজিক শুরু করুন"):
     with st.spinner("AI ডেটা বিশ্লেষণ করছে..."):
 
         try:
-            json_text = extract_mcq_with_gemini(
-                user_input,
-                api_key
-            )
+            json_text = extract_mcq_with_gemini(user_input)
 
             structured_data = json.loads(json_text)
 
@@ -262,9 +253,7 @@ if st.button("✨ ম্যাজিক শুরু করুন"):
             )
 
         except json.JSONDecodeError:
-            st.error(
-                "⚠️ Gemini থেকে বৈধ JSON পাওয়া যায়নি। আবার চেষ্টা করুন।"
-            )
+            st.error("⚠️ Gemini থেকে বৈধ JSON পাওয়া যায়নি।")
 
             with st.expander("Raw Response"):
                 st.code(json_text)
